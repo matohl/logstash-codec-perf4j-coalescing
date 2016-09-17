@@ -76,6 +76,9 @@ module LogStash module Codecs class Perf4jCoalescing < LogStash::Codecs::Base
 
     @auto_flush_interval = 5
 
+    @startTime = ""
+    @endTime   = ""
+
 
     # Detect if we are running from a jarfile, pick the right path.
     patterns_path = []
@@ -184,38 +187,39 @@ module LogStash module Codecs class Perf4jCoalescing < LogStash::Codecs::Base
     # where the first line will contain the time interval, the second is just headings (discard it), and from
     # the third line there are real statistics
     events = []
-    if @buffer.length > 2
-
-      # first get start and end time from first line
-      times = get_start_end_times(@buffer[0])
-      startTime = times[0]
-      endTime   = times[1]
-
-
-      # then scrap first and second line
-      @buffer.delete_at(1)
-      @buffer.delete_at(0)
-      @buffer.compact
 
       @buffer.each { |line|
 
-        splitLine = line.split(" ")
+        get_start_end_times(line)
 
-        events.push( LogStash::Event.new(
-                LogStash::Event::TIMESTAMP => startTime,
-                "message" => startTime + " " + endTime + "    " +  line,
-                "startTime" => startTime,
-                "endTime" => endTime,
-                "tag" => splitLine[0],
-                "average" => splitLine[1],
-                "min" => splitLine[2],
-                "max" => splitLine[3],
-                "StdDev" => splitLine[4],
-                "count" => splitLine[5]
-            ))
+        if line.index("Performance Statistics ") == 0
+          # do nothing
+        elsif line.index("Tag    ") == 0
+          # do nothing
+        elsif line.length == 0
+          # do nothing
+        else
+
+
+          splitLine = line.split(" ")
+
+          events.push( LogStash::Event.new(
+                  LogStash::Event::TIMESTAMP => @startTime,
+                  "message" => @startTime + " " + @endTime + "    " +  line,
+                  "startTime" => @startTime,
+                  "endTime" => @endTime,
+                  "tag" => splitLine[0],
+                  "average" => splitLine[1],
+                  "min" => splitLine[2],
+                  "max" => splitLine[3],
+                  "StdDev" => splitLine[4],
+                  "count" => splitLine[5]
+              ))
+        end
+
       }
 
-    end
+    #end
 
     events
   end
@@ -278,31 +282,32 @@ module LogStash module Codecs class Perf4jCoalescing < LogStash::Codecs::Base
     @auto_flush_runner || AutoFlushUnset.new(nil, nil)
   end
 
+  # gets start and end times from the line if it starts with "Performance Statistics", otherwise previous values are used
   def get_start_end_times(line)
     #2001-02-03T04:05+01:00
 
-    arr = line.split(" ")
-    date1 = arr[2] + "T" + arr[3] + ".000"
-    date2 = arr[5] + "T" + arr[6] + ".000"
+    if line.index("Performance Statistics") == 0
+      arr = line.split(" ")
+      date1 = arr[2] + "T" + arr[3] + ".000"
+      date2 = arr[5] + "T" + arr[6] + ".000"
 
-    # offset from UTC
-    offset_minutes = Time.now.getlocal.utc_offset / 60
+      # offset from UTC
+      offset_minutes = Time.now.getlocal.utc_offset / 60
 
-    if offset_minutes == 0
-      time_zone_suffix = "Z"
-    else
-      hours = offset_minutes / 60
-      minutes = offset_minutes % 60
-      time_zone_suffix = "+" + sprintf("%2.2d:%2.2d", hours, minutes)
+      if offset_minutes == 0
+        time_zone_suffix = "Z"
+      else
+        hours = offset_minutes / 60
+        minutes = offset_minutes % 60
+        time_zone_suffix = "+" + sprintf("%2.2d:%2.2d", hours, minutes)
+      end
+      date1 << time_zone_suffix
+      date2 << time_zone_suffix
+
+      @startTime = date1
+      @endTime   = date2
+
     end
-    date1 << time_zone_suffix
-    date2 << time_zone_suffix
-
-    values = []
-    values.push(date1)
-    values.push(date2)
-
-    values
   end
 
 end end end # class LogStash::Codecs::Perf4jCoalescing
