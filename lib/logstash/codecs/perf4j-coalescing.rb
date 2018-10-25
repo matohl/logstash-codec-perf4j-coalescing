@@ -209,11 +209,11 @@ module LogStash module Codecs class Perf4jCoalescing < LogStash::Codecs::Base
                   "startTime" => @startTime,
                   "endTime" => @endTime,
                   "tag" => splitLine[0],
-                  "average" => splitLine[1],
-                  "min" => splitLine[2],
-                  "max" => splitLine[3],
-                  "StdDev" => splitLine[4],
-                  "count" => splitLine[5]
+                  "average" => splitLine[1].to_f,
+                  "min" => splitLine[2].to_f,
+                  "max" => splitLine[3].to_f,
+                  "StdDev" => splitLine[4].to_f,
+                  "count" => splitLine[5].to_i
               ))
         end
 
@@ -283,8 +283,8 @@ module LogStash module Codecs class Perf4jCoalescing < LogStash::Codecs::Base
   end
 
   # gets start and end times from the line if it starts with "Performance Statistics", otherwise previous values are used
+  # format used is iso8601.
   def get_start_end_times(line)
-    #2001-02-03T04:05+01:00
 
     if line.index("Performance Statistics") == 0
       arr = line.split(" ")
